@@ -25,6 +25,11 @@ jobs:
     - name: Restore
       run: dotnet restore
 
+    - name: Register WPD COM
+      run: |
+        regsvr32 /s C:\Windows\System32\PortableDeviceApi.dll
+        regsvr32 /s C:\Windows\System32\PortableDeviceTypes.dll
+
     # ★ COM対応ビルド
     - name: Build
       run: msbuild WpdBackupTool.csproj /p:Configuration=Release
