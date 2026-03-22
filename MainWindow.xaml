@@ -1,7 +1,8 @@
 <Window x:Class="WpdBackupTool.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        Title="iPhone WPD Backup" Height="500" Width="750">
-
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="iPhone WPD Backup"
+        Height="500" Width="750">
     <DockPanel Margin="10">
 
         <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,10">
