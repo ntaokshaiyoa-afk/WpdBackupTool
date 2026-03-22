@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- WPD COM参照 -->
+  <ItemGroup>
+    <COMReference Include="PortableDeviceApiLib">
+      <Guid>{F7C0039A-4762-488A-B4B3-760EF9A1BA9A}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <WrapperTool>tlbimp</WrapperTool>
+    </COMReference>
+
+    <COMReference Include="PortableDeviceTypesLib">
+      <Guid>{2D8A7C2E-4F0E-4C6C-8F2B-DA0A7DCE6D9E}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <WrapperTool>tlbimp</WrapperTool>
+    </COMReference>
+  </ItemGroup>
+
+</Project>
