@@ -11,14 +11,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # Visual StudioのMSBuildを使う
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Restore
-      run: nuget restore
+    # ❌ Restore削除
 
-    - name: Build (MSBuild)
+    - name: Build
       run: msbuild WpdBackupTool.csproj /p:Configuration=Release
 
     - name: Publish
