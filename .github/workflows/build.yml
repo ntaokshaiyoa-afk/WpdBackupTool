@@ -1,48 +1,59 @@
-name: Build WPF App
+name: Build
 
 on:
   push:
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+    # ソース取得
+    - name: Checkout
+      uses: actions/checkout@v4
 
-    # .NET（restore用）
+    # .NETセットアップ
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: 8.0.x
 
-    # MSBuild（COM対応）
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
+    # NuGetキャッシュ（高速化）
+    - name: Cache NuGet
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
 
-    # ★ これが重要（assets生成）
+    # 復元
     - name: Restore
       run: dotnet restore
 
-    - name: Register WPD COM
-      run: |
-        regsvr32 /s C:\Windows\System32\PortableDeviceApi.dll
-        regsvr32 /s C:\Windows\System32\PortableDeviceTypes.dll
-
-    # ★ COM対応ビルド
+    # ビルド
     - name: Build
-      run: msbuild WpdBackupTool.csproj /p:Configuration=Release
+      run: dotnet build --configuration Release --no-restore
 
+    # 発行（単一EXE）
     - name: Publish
-      run: msbuild WpdBackupTool.csproj ^
-            /p:Configuration=Release ^
-            /p:PublishDir=publish ^
-            /p:RuntimeIdentifier=win-x64 ^
-            /p:PublishSingleFile=true
+      run: >
+        dotnet publish
+        IPhoneDcimBackup/IPhoneDcimBackup.csproj
+        -c Release
+        -r win-x64
+        --self-contained false
+        -p:PublishSingleFile=true
+        -o publish
 
+    # 成果物アップロード
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: WpdBackupTool
+        name: IPhoneDcimBackup
         path: publish/
