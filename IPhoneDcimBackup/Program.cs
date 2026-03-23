@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using iMobileDevice;
@@ -30,14 +31,14 @@ class Program
 
         Console.WriteLine($"Device: {udid}");
 
-        var afc = CreateAfcClient(udid);
+        using var afc = CreateAfcClient(udid);
 
         var files = new ConcurrentBag<(string remote, string local, ulong size)>();
 
+        Console.WriteLine("列挙中...");
         EnumerateFiles(afc, "/DCIM", localRoot, files);
 
         totalFiles = files.Count;
-
         Console.WriteLine($"対象: {totalFiles}");
 
         await Parallel.ForEachAsync(files, new ParallelOptions
@@ -58,25 +59,22 @@ class Program
     }
 
     // =========================
-    // デバイス取得
+    // デバイス取得（正しい書き方）
     // =========================
     static string? GetFirstDevice()
     {
-        var api = LibiMobileDevice.Instance.iDevice;
+        var idevice = LibiMobileDevice.Instance.iDevice;
 
-        IntPtr listPtr;
+        ReadOnlyCollection<string> udids;
         int count = 0;
 
-        api.idevice_get_device_list(out listPtr, ref count);
+        var ret = idevice.idevice_get_device_list(out udids, ref count);
 
         if (count == 0) return null;
 
-        IntPtr firstPtr = Marshal.ReadIntPtr(listPtr);
-        string udid = Marshal.PtrToStringAnsi(firstPtr)!;
+        ret.ThrowOnError();
 
-        api.idevice_device_list_free(listPtr);
-
-        return udid;
+        return udids.FirstOrDefault();
     }
 
     // =========================
@@ -86,47 +84,34 @@ class Program
     {
         var idevice = LibiMobileDevice.Instance.iDevice;
         var lockdown = LibiMobileDevice.Instance.Lockdown;
-        var afc = LibiMobileDevice.Instance.Afc;
+        var afcApi = LibiMobileDevice.Instance.Afc;
 
-        idevice.idevice_new(out var device, udid);
+        idevice.idevice_new(out var device, udid).ThrowOnError();
 
-        lockdown.lockdownd_client_new_with_handshake(device, out var lockdownClient, "backup");
+        lockdown.lockdownd_client_new_with_handshake(device, out var lockdownClient, "backup").ThrowOnError();
 
-        lockdown.lockdownd_start_service(lockdownClient, "com.apple.afc", out var service);
+        lockdown.lockdownd_start_service(lockdownClient, "com.apple.afc", out var service).ThrowOnError();
 
-        afc.afc_client_new(device, service, out var afcClient);
+        afcApi.afc_client_new(device, service, out var afc).ThrowOnError();
 
-        return afcClient;
+        return afc;
     }
 
     // =========================
-    // ディレクトリ列挙
+    // 列挙
     // =========================
     static void EnumerateFiles(AfcClientHandle afc, string remote, string local,
         ConcurrentBag<(string, string, ulong)> result)
     {
-        var api = LibiMobileDevice.Instance.Afc;
+        var afcApi = LibiMobileDevice.Instance.Afc;
 
-        IntPtr listPtr;
+        afcApi.afc_read_directory(afc, remote, out ReadOnlyCollection<string> entries).ThrowOnError();
 
-        api.afc_read_directory(afc, remote, out listPtr);
-
-        int index = 0;
-
-        while (true)
+        foreach (var name in entries)
         {
-            IntPtr p = Marshal.ReadIntPtr(listPtr, index * IntPtr.Size);
-            if (p == IntPtr.Zero) break;
+            if (name == "." || name == "..") continue;
 
-            string name = Marshal.PtrToStringAnsi(p)!;
-
-            if (name == "." || name == "..")
-            {
-                index++;
-                continue;
-            }
-
-            string remotePath = remote + "/" + name;
+            string remotePath = $"{remote}/{name}";
             string localPath = Path.Combine(local, name);
 
             var info = GetFileInfo(afc, remotePath);
@@ -140,44 +125,20 @@ class Program
             {
                 result.Add((remotePath, localPath, info.size));
             }
-
-            index++;
         }
-
-        api.afc_dictionary_free(listPtr);
     }
 
     // =========================
-    // ファイル情報取得
+    // ファイル情報
     // =========================
     static (bool isDir, ulong size) GetFileInfo(AfcClientHandle afc, string path)
     {
-        var api = LibiMobileDevice.Instance.Afc;
+        var afcApi = LibiMobileDevice.Instance.Afc;
 
-        IntPtr dictPtr;
-        api.afc_get_file_info(afc, path, out dictPtr);
+        afcApi.afc_get_file_info(afc, path, out ReadOnlyDictionary<string, string> dict).ThrowOnError();
 
-        bool isDir = false;
-        ulong size = 0;
-
-        int i = 0;
-        while (true)
-        {
-            IntPtr keyPtr = Marshal.ReadIntPtr(dictPtr, i * 2 * IntPtr.Size);
-            if (keyPtr == IntPtr.Zero) break;
-
-            IntPtr valPtr = Marshal.ReadIntPtr(dictPtr, (i * 2 + 1) * IntPtr.Size);
-
-            string key = Marshal.PtrToStringAnsi(keyPtr)!;
-            string val = Marshal.PtrToStringAnsi(valPtr)!;
-
-            if (key == "st_ifmt" && val == "S_IFDIR") isDir = true;
-            if (key == "st_size") ulong.TryParse(val, out size);
-
-            i++;
-        }
-
-        api.afc_dictionary_free(dictPtr);
+        bool isDir = dict.TryGetValue("st_ifmt", out var type) && type == "S_IFDIR";
+        ulong size = dict.TryGetValue("st_size", out var s) ? ulong.Parse(s) : 0;
 
         return (isDir, size);
     }
@@ -227,9 +188,9 @@ class Program
 
     static async Task CopyFile(AfcClientHandle afc, string remote, string local)
     {
-        var api = LibiMobileDevice.Instance.Afc;
+        var afcApi = LibiMobileDevice.Instance.Afc;
 
-        api.afc_file_open(afc, remote, 1 /* READ */, out var handle);
+        afcApi.afc_file_open(afc, remote, AfcFileMode.Read, out var handle).ThrowOnError();
 
         using var fs = new FileStream(local, FileMode.Create, FileAccess.Write);
 
@@ -239,29 +200,19 @@ class Program
         {
             uint read = 0;
 
-            IntPtr bufPtr = Marshal.AllocHGlobal(buffer.Length);
+            afcApi.afc_file_read(afc, handle, buffer, (uint)buffer.Length, ref read).ThrowOnError();
 
-            api.afc_file_read(afc, handle, bufPtr, (uint)buffer.Length, ref read);
+            if (read == 0) break;
 
-            if (read == 0)
-            {
-                Marshal.FreeHGlobal(bufPtr);
-                break;
-            }
-
-            Marshal.Copy(bufPtr, buffer, 0, (int)read);
             await fs.WriteAsync(buffer, 0, (int)read);
-
-            Marshal.FreeHGlobal(bufPtr);
         }
 
-        api.afc_file_close(afc, handle);
+        afcApi.afc_file_close(afc, handle);
     }
 
     static void Done()
     {
-        Interlocked.Increment(ref processedFiles);
-        int c = processedFiles;
+        int c = Interlocked.Increment(ref processedFiles);
         Console.Write($"\r{c}/{totalFiles} ({c * 100 / totalFiles}%)");
     }
 }
