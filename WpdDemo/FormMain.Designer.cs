@@ -107,6 +107,18 @@
             this.labelProgress.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             // 
+            // buttonCancel
+            // 
+            this.buttonCancel = new System.Windows.Forms.Button();
+            this.buttonCancel.Location = new System.Drawing.Point(706, 410);
+            this.buttonCancel.Name = "buttonCancel";
+            this.buttonCancel.Size = new System.Drawing.Size(75, 23);
+            this.buttonCancel.TabIndex = 9;
+            this.buttonCancel.Text = "Cancel";
+            this.buttonCancel.UseVisualStyleBackColor = true;
+            this.buttonCancel.Click += new System.EventHandler(this.buttonCancel_Click);
+            this.buttonCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            // 
             // columnHeader1
             // 
             this.columnHeader1.Text = "name";
@@ -155,6 +167,7 @@
             this.Controls.Add(this.button1);
             this.Controls.Add(this.labelProgress);
             this.Controls.Add(this.progressBar1);
+            this.Controls.Add(this.buttonCancel);
             this.Name = "FormMain";
             this.Text = "Form1";
             this.Load += new System.EventHandler(this.FormMain_Load);
@@ -177,6 +190,7 @@
         private System.Windows.Forms.Button Btn_SelectDownloadRootFolder;
         private System.Windows.Forms.ProgressBar progressBar1;
         private System.Windows.Forms.Label labelProgress;
+        private System.Windows.Forms.Button buttonCancel;
     }
 }
 
