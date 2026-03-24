@@ -317,8 +317,13 @@ private object _progressLock = new object();
         }
 
         private async void button1_Click(object sender, EventArgs e)
-{
-    if (listView1.SelectedItems.Count == 0) return;
+        {
+            _totalBytes = 0;
+            _downloadedBytes = 0;
+            _totalFiles = 0;
+            _completedFiles = 0;
+            
+            if (listView1.SelectedItems.Count == 0) return;
 
     string localRoot = textBox_downloadRoot.Text;
     if (string.IsNullOrWhiteSpace(localRoot))
@@ -337,14 +342,6 @@ private object _progressLock = new object();
 
     string topName = SanitizeFileName(obj.Name);
     string localTop = Path.Combine(localRoot, topName);
-
-    _totalBytes = 0;
-_downloadedBytes = 0;
-_totalFiles = 0;
-_completedFiles = 0;
-
-device.DeviceClass.Content(out IPortableDeviceContent content);
-content.Properties(out IPortableDeviceProperties properties);
 
 if (obj.kind == ObjectKind.FOLDER)
 {
