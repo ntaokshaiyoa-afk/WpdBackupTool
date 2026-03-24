@@ -44,7 +44,7 @@ jobs:
     - name: Publish
       run: >
         dotnet publish
-        IPhoneDcimBackup/IPhoneDcimBackup.csproj
+        WpdDemo/WpdDemo.csproj
         -c Release
         -r win-x64
         --self-contained false
