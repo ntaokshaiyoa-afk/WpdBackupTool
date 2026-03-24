@@ -408,39 +408,7 @@ namespace WpdDemo
             }
             return list;
         }
-        private void DownloadFolderRecursive(string mtpFolderId, string localFolderPath)
-        {
-            WPDDevice device = (WPDDevice)comboBox_device.SelectedItem;
-
-            device.DeviceClass.Content(out IPortableDeviceContent content);
-            content.Properties(out IPortableDeviceProperties properties);
-
-            Directory.CreateDirectory(localFolderPath);
-
-            foreach (var child in EnumChildren(content, properties, mtpFolderId))
-            {
-                if (child.kind == ObjectKind.FOLDER)
-                {
-                    var folderName = SanitizeFileName(child.Name);
-                    string nextLocal = Path.Combine(localFolderPath, folderName);
-                    DownloadFolderRecursive(child.Id, nextLocal);
-                }
-                else
-                {
-                    var fileName = SanitizeFileName(child.Name);
-                    string intendedPath = Path.Combine(localFolderPath, fileName);
-
-                    // 差分バックアップ判定（同名同サイズならスキップ／サイズ違いなら _1）
-                    var decision = DecideTargetPathWithDiffBackup(intendedPath, child.Size);
-                    if (decision.Kind == BackupDecisionKind.Skip)
-                        continue;
-
-                    // 3回リトライ付き
-                    DownloadWithRetry(child.Id, decision.TargetPath, child.Size, maxRetry: 3);
-                }
-            }
-        }
-
+        
         private string SanitizeFileName(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) name = "(no name)";
