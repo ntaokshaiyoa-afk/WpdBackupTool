@@ -44,6 +44,12 @@ private int _completedFiles = 0;
 
 private object _progressLock = new object();
 
+private System.Threading.CancellationTokenSource _cts;
+
+private DateTime _startTime;
+private long _lastBytes = 0;
+private DateTime _lastUpdateTime;
+
         class WPDDevice
         {
             public string DeviceID;
@@ -332,6 +338,12 @@ private object _progressLock = new object();
         return;
     }
 
+    _cts = new CancellationTokenSource();
+
+_startTime = DateTime.Now;
+_lastUpdateTime = _startTime;
+_lastBytes = 0;
+
     string id = listView1.SelectedItems[0].SubItems[2].Text;
 
     WPDDevice device = (WPDDevice)comboBox_device.SelectedItem;
@@ -354,6 +366,7 @@ else
         _totalBytes = (long)obj.Size.Value;
 }
 
+try{
     if (obj.kind == ObjectKind.FOLDER)
     {
         await DownloadFolderRecursiveAsync(obj.Id, localTop);
@@ -367,6 +380,10 @@ else
         await DownloadWithSemaphoreAsync(obj.Id, savePath, obj.Size);
         MessageBox.Show("ファイルのダウンロードが完了しました。");
     }
+catch (OperationCanceledException)
+{
+    MessageBox.Show("キャンセルされました");
+}
 }
 
         public long Download(string FileID, string FilePath)
@@ -461,7 +478,10 @@ else
             }
         }
 
-
+private void buttonCancel_Click(object sender, EventArgs e)
+{
+    _cts?.Cancel();
+}
 
 
 
@@ -579,17 +599,27 @@ else
 
     for (int attempt = 1; attempt <= maxRetry; attempt++)
     {
+        _cts.Token.ThrowIfCancellationRequested();
+
         try
         {
-            long actualSize = await Task.Run(() => Download(fileId, filePath));
+            long actualSize = await Task.Run(() =>
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+                return Download(fileId, filePath);
+            }, _cts.Token);
 
             if (expectedSize.HasValue && (ulong)actualSize != expectedSize.Value)
                 throw new IOException("サイズ不一致");
 
-            // ✅ 進捗更新
             ReportProgress(actualSize);
 
             return;
+        }
+        catch (OperationCanceledException)
+        {
+            try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
+            throw;
         }
         catch (Exception ex)
         {
@@ -599,7 +629,7 @@ else
 
             if (attempt == maxRetry) break;
 
-            await Task.Delay(300 * attempt);
+            await Task.Delay(300 * attempt, _cts.Token);
         }
     }
 
@@ -608,7 +638,7 @@ else
 
 private async Task DownloadWithSemaphoreAsync(string fileId, string path, ulong? size)
 {
-    await _downloadSemaphore.WaitAsync();
+    await _downloadSemaphore.WaitAsync(_cts.Token);
     try
     {
         await DownloadWithRetryAsync(fileId, path, size);
@@ -683,25 +713,33 @@ private void ReportProgress(long addedBytes)
         _downloadedBytes += addedBytes;
         _completedFiles++;
 
-        int percent;
+        var now = DateTime.Now;
+        var elapsed = (now - _startTime).TotalSeconds;
 
+        double speed = elapsed > 0 ? _downloadedBytes / elapsed : 0; // bytes/sec
+
+        double remainingSec = 0;
+        if (_totalBytes > 0 && speed > 0)
+        {
+            remainingSec = (_totalBytes - _downloadedBytes) / speed;
+        }
+
+        int percent;
         if (_totalBytes > 0)
-        {
             percent = (int)(_downloadedBytes * 100 / _totalBytes);
-        }
         else
-        {
             percent = (int)(_completedFiles * 100 / _totalFiles);
-        }
 
         percent = Math.Min(100, percent);
 
-        // UIスレッドに戻す
+        string speedText = $"{speed / 1024 / 1024:F2} MB/s";
+        string etaText = remainingSec > 0 ? $"{TimeSpan.FromSeconds(remainingSec):mm\\:ss}" : "--:--";
+
         this.Invoke((Action)(() =>
         {
             progressBar1.Value = percent;
             labelProgress.Text =
-                $"{percent}%  ({_completedFiles}/{_totalFiles} files)";
+                $"{percent}%  ({_completedFiles}/{_totalFiles})  {speedText}  ETA:{etaText}";
         }));
     }
 }
