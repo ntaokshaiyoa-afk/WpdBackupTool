@@ -12,6 +12,9 @@ jobs:
     runs-on: windows-latest
 
     steps:
+    - name: Setup MSBuild (Visual Studio)
+      uses: microsoft/setup-msbuild@v2
+
     # ソース取得
     - name: Checkout
       uses: actions/checkout@v4
@@ -27,12 +30,18 @@ jobs:
           ${{ runner.os }}-nuget-
 
     # 復元
-    - name: Restore
-      run: dotnet restore
+    #- name: Restore
+    #  run: dotnet restore
 
+    - name: Restore
+      run: nuget restore WpdDemo/WpdDemo.csproj
+
+    - name: Build (MSBuild .NET Framework)
+      run: msbuild WpdDemo/WpdDemo.csproj /p:Configuration=Release /p:Platform="Any CPU" /m
+    
     # ビルド
-    - name: Build
-      run: dotnet build --configuration Release --no-restore
+    #- name: Build
+    #  run: dotnet build --configuration Release --no-restore
 
     # 発行（単一EXE）
     - name: Publish
