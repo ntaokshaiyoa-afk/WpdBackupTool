@@ -343,7 +343,7 @@ namespace WpdDemo
             {
                 Directory.CreateDirectory(localRoot);
                 string savePath = EnsureUniquePath(System.IO.Path.Combine(localRoot, obj.Name));
-                Download(obj.Id, savePath);
+                DownloadWithRetry(obj.Id, savePath, obj.Size, maxRetry: 3);
                 MessageBox.Show("ファイルのダウンロードが完了しました。");
             }
         }
@@ -439,7 +439,7 @@ namespace WpdDemo
                         continue;
 
                     // 3回リトライ付き
-                    DownloadWithRetry(child.Id, decision.TargetPath, maxRetry: 3);
+                    DownloadWithRetry(child.Id, decision.TargetPath, child.Size, maxRetry: 3);
                 }
             }
         }
@@ -579,30 +579,45 @@ namespace WpdDemo
 
             throw new IOException("ユニークファイル名の採番上限に達しました。");
         }
-        private void DownloadWithRetry(string fileId, string filePath, int maxRetry = 3)
+        private void DownloadWithRetry(string fileId, string filePath, ulong? expectedSize, int maxRetry = 3)
+{
+    Exception last = null;
+
+    for (int attempt = 1; attempt <= maxRetry; attempt++)
+    {
+        try
         {
-            Exception last = null;
-            for (int attempt = 1; attempt <= maxRetry; attempt++)
+            Download(fileId, filePath);
+
+            // サイズチェック（取得できる場合のみ）
+            if (expectedSize.HasValue)
             {
-                try
+                var fi = new FileInfo(filePath);
+                ulong actual = (ulong)fi.Length;
+
+                if (actual != expectedSize.Value)
                 {
-                    Download(fileId, filePath); // 既存のあなたの関数を使用
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    last = ex;
-
-                    // 中途半端なファイルを残さない（任意だが推奨）
-                    try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
-
-                    if (attempt == maxRetry) break;
-
-                    System.Threading.Thread.Sleep(300 * attempt); // 軽いバックオフ
+                    throw new IOException($"サイズ不一致: expected={expectedSize.Value}, actual={actual}");
                 }
             }
 
-            throw new IOException($"ダウンロードに失敗しました（{maxRetry}回リトライ）: {filePath}", last);
+            // 成功
+            return;
         }
+        catch (Exception ex)
+        {
+            last = ex;
+
+            // 中途半端なファイル削除
+            try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
+
+            if (attempt == maxRetry) break;
+
+            System.Threading.Thread.Sleep(500 * attempt); // 少し長めに
+        }
+    }
+
+    throw new IOException($"ダウンロード失敗（サイズ不一致含む）: {filePath}", last);
+}
     }
 }
