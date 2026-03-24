@@ -57,6 +57,8 @@
             // 
             // comboBox_device
             // 
+            this.comboBox_device.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+                                                                                | System.Windows.Forms.AnchorStyles.Right)));
             this.comboBox_device.FormattingEnabled = true;
             this.comboBox_device.Location = new System.Drawing.Point(12, 13);
             this.comboBox_device.Name = "comboBox_device";
@@ -71,6 +73,9 @@
             this.columnHeader2,
             this.columnHeader3,
             this.columnHeader4});
+            this.listView1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+                                                                           | System.Windows.Forms.AnchorStyles.Left) 
+                                                                          　| System.Windows.Forms.AnchorStyles.Right)));
             this.listView1.HideSelection = false;
             this.listView1.Location = new System.Drawing.Point(13, 75);
             this.listView1.Name = "listView1";
@@ -79,6 +84,28 @@
             this.listView1.UseCompatibleStateImageBehavior = false;
             this.listView1.View = System.Windows.Forms.View.Details;
             this.listView1.DoubleClick += new System.EventHandler(this.listView1_DoubleClick);
+            // 
+            // progressBar1
+            // 
+            this.progressBar1 = new System.Windows.Forms.ProgressBar();
+            this.progressBar1.Location = new System.Drawing.Point(13, 410);
+            this.progressBar1.Name = "progressBar1";
+            this.progressBar1.Size = new System.Drawing.Size(687, 23);
+            this.progressBar1.TabIndex = 7;
+            this.progressBar1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+
+            // 
+            // labelProgress
+            // 
+            this.labelProgress = new System.Windows.Forms.Label();
+            this.labelProgress.Location = new System.Drawing.Point(13, 390);
+            this.labelProgress.Name = "labelProgress";
+            this.labelProgress.Size = new System.Drawing.Size(687, 15);
+            this.labelProgress.TabIndex = 8;
+            this.labelProgress.Text = "0%";
+            this.labelProgress.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             // 
             // columnHeader1
             // 
@@ -99,6 +126,8 @@
             // 
             // textBox_downloadRoot
             // 
+            this.textBox_downloadRoot.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+                                                                                     | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox_downloadRoot.Location = new System.Drawing.Point(13, 40);
             this.textBox_downloadRoot.Name = "textBox_downloadRoot";
             this.textBox_downloadRoot.Size = new System.Drawing.Size(687, 19);
@@ -124,6 +153,8 @@
             this.Controls.Add(this.listView1);
             this.Controls.Add(this.comboBox_device);
             this.Controls.Add(this.button1);
+            this.Controls.Add(this.labelProgress);
+            this.Controls.Add(this.progressBar1);
             this.Name = "FormMain";
             this.Text = "Form1";
             this.Load += new System.EventHandler(this.FormMain_Load);
@@ -144,6 +175,8 @@
         private System.Windows.Forms.ColumnHeader columnHeader4;
         private System.Windows.Forms.TextBox textBox_downloadRoot;
         private System.Windows.Forms.Button Btn_SelectDownloadRootFolder;
+        private System.Windows.Forms.ProgressBar progressBar1;
+        private System.Windows.Forms.Label labelProgress;
     }
 }
 
