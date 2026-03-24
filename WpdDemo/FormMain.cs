@@ -36,6 +36,14 @@ namespace WpdDemo
         private PortableDeviceManager deviceManager;
         private System.Threading.SemaphoreSlim _downloadSemaphore = new System.Threading.SemaphoreSlim(2); // ←並列数（2〜3推奨）
 
+private long _totalBytes = 0;
+private long _downloadedBytes = 0;
+
+private int _totalFiles = 0;
+private int _completedFiles = 0;
+
+private object _progressLock = new object();
+
         class WPDDevice
         {
             public string DeviceID;
@@ -330,6 +338,25 @@ namespace WpdDemo
     string topName = SanitizeFileName(obj.Name);
     string localTop = Path.Combine(localRoot, topName);
 
+    _totalBytes = 0;
+_downloadedBytes = 0;
+_totalFiles = 0;
+_completedFiles = 0;
+
+device.DeviceClass.Content(out IPortableDeviceContent content);
+content.Properties(out IPortableDeviceProperties properties);
+
+if (obj.kind == ObjectKind.FOLDER)
+{
+    ScanTotal(content, properties, obj.Id);
+}
+else
+{
+    _totalFiles = 1;
+    if (obj.Size.HasValue)
+        _totalBytes = (long)obj.Size.Value;
+}
+
     if (obj.kind == ObjectKind.FOLDER)
     {
         await DownloadFolderRecursiveAsync(obj.Id, localTop);
@@ -345,54 +372,59 @@ namespace WpdDemo
     }
 }
 
-        public void Download(string FileID, string FilePath)
+        public long Download(string FileID, string FilePath)
+{
+    WPDDevice device = (WPDDevice)comboBox_device.SelectedItem;
+
+    device.DeviceClass.Content(out IPortableDeviceContent content);
+    content.Properties(out IPortableDeviceProperties properties);
+
+    IPortableDeviceResources resources;
+    content.Transfer(out resources);
+
+    PortableDeviceApiLib.IStream wpdStream;
+    uint optimalTransferSize = 0;
+
+    var property = new _tagpropertykey();
+    property.fmtid = new Guid(0xE81E79BE, 0x34F0, 0x41BF, 0xB5, 0x3F, 0xF1, 0xA0, 0x6A, 0xE8, 0x78, 0x42);
+    property.pid = WPD_RESOURCE_DEFAULT;
+
+    resources.GetStream(FileID, ref property, 0, ref optimalTransferSize, out wpdStream);
+    var sourceStream = (System.Runtime.InteropServices.ComTypes.IStream)wpdStream;
+
+    long totalRead = 0;
+
+    using (var targetStream = new FileStream(FilePath, FileMode.Create, FileAccess.Write, FileShare.None, 262144, FileOptions.SequentialScan))
+    {
+        int BUFFER_SIZE = 262144;
+        byte[] buffer = new byte[BUFFER_SIZE];
+
+        IntPtr pbytesRead = Marshal.AllocCoTaskMem(sizeof(int));
+
+        try
         {
-            WPDDevice device = (WPDDevice)comboBox_device.SelectedItem;
-
-            IPortableDeviceContent content;
-            device.DeviceClass.Content(out content);
-
-            IPortableDeviceProperties properties;
-            content.Properties(out properties);
-
-            PortableDeviceObject downloadFileObj = WrapObject(properties, FileID);
-
-            IPortableDeviceResources resources;
-            content.Transfer(out resources);
-
-            PortableDeviceApiLib.IStream wpdStream;
-            uint optimalTransferSize = 0;
-
-            var property = new _tagpropertykey();
-            property.fmtid = new Guid(0xE81E79BE, 0x34F0, 0x41BF, 0xB5, 0x3F, 0xF1, 0xA0, 0x6A, 0xE8, 0x78, 0x42);
-            property.pid = WPD_RESOURCE_DEFAULT;
-
-            resources.GetStream(FileID, ref property, 0, ref optimalTransferSize, out wpdStream);
-            System.Runtime.InteropServices.ComTypes.IStream sourceStream = (System.Runtime.InteropServices.ComTypes.IStream)wpdStream;
-
-            System.IO.FileStream targetStream = new System.IO.FileStream(FilePath, System.IO.FileMode.Create, System.IO.FileAccess.Write, FileShare.None, 262144, FileOptions.SequentialScan);
-
-            int BUFFER_SIZE = 262144; // 32767;
-            byte[] buffer = new byte[BUFFER_SIZE];
-
-            IntPtr pbytesRead = Marshal.AllocCoTaskMem(Marshal.SizeOf(typeof(int)));
-
             while (true)
             {
                 sourceStream.Read(buffer, BUFFER_SIZE, pbytesRead);
-
                 int bytesRead = Marshal.ReadInt32(pbytesRead);
-                if (bytesRead <= 0)
-                {
-                    break;
-                }
-                targetStream.Write(buffer, 0, bytesRead);
-            }
-            targetStream.Close();
 
-            Marshal.ReleaseComObject(sourceStream);
-            Marshal.ReleaseComObject(wpdStream);
+                if (bytesRead <= 0) break;
+
+                targetStream.Write(buffer, 0, bytesRead);
+                totalRead += bytesRead;
+            }
         }
+        finally
+        {
+            Marshal.FreeCoTaskMem(pbytesRead);
+        }
+    }
+
+    Marshal.ReleaseComObject(sourceStream);
+    Marshal.ReleaseComObject(wpdStream);
+
+    return totalRead;
+}
 
         private List<PortableDeviceObject> EnumChildren(IPortableDeviceContent content, IPortableDeviceProperties properties, string parentId)
         {
@@ -552,15 +584,13 @@ namespace WpdDemo
     {
         try
         {
-            await Task.Run(() => Download(fileId, filePath));
+            long actualSize = await Task.Run(() => Download(fileId, filePath));
 
-            // ✅ サイズ検証
-            if (expectedSize.HasValue)
-            {
-                long localSize = new FileInfo(filePath).Length;
-                if ((ulong)localSize != expectedSize.Value)
-                    throw new IOException($"サイズ不一致 local={localSize} remote={expectedSize.Value}");
-            }
+            if (expectedSize.HasValue && (ulong)actualSize != expectedSize.Value)
+                throw new IOException("サイズ不一致");
+
+            // ✅ 進捗更新
+            ReportProgress(actualSize);
 
             return;
         }
@@ -578,6 +608,7 @@ namespace WpdDemo
 
     throw new IOException($"ダウンロード失敗: {filePath}", last);
 }
+
 private async Task DownloadWithSemaphoreAsync(string fileId, string path, ulong? size)
 {
     await _downloadSemaphore.WaitAsync();
@@ -627,6 +658,55 @@ private async Task DownloadFolderRecursiveAsync(string mtpFolderId, string local
 
     // ✅ このフォルダ内のダウンロード完了待ち
     await Task.WhenAll(tasks);
+}
+
+// 進捗
+private void ScanTotal(IPortableDeviceContent content, IPortableDeviceProperties properties, string folderId)
+{
+    foreach (var child in EnumChildren(content, properties, folderId))
+    {
+        if (child.kind == ObjectKind.FOLDER)
+        {
+            ScanTotal(content, properties, child.Id);
+        }
+        else
+        {
+            _totalFiles++;
+
+            if (child.Size.HasValue)
+                _totalBytes += (long)child.Size.Value;
+        }
+    }
+}
+
+private void ReportProgress(long addedBytes)
+{
+    lock (_progressLock)
+    {
+        _downloadedBytes += addedBytes;
+        _completedFiles++;
+
+        int percent;
+
+        if (_totalBytes > 0)
+        {
+            percent = (int)(_downloadedBytes * 100 / _totalBytes);
+        }
+        else
+        {
+            percent = (int)(_completedFiles * 100 / _totalFiles);
+        }
+
+        percent = Math.Min(100, percent);
+
+        // UIスレッドに戻す
+        this.Invoke((Action)(() =>
+        {
+            progressBar1.Value = percent;
+            labelProgress.Text =
+                $"{percent}%  ({_completedFiles}/{_totalFiles} files)";
+        }));
+    }
 }
 
     }
