@@ -29,34 +29,21 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-nuget-
 
-    # 復元
-    #- name: Restore
-    #  run: dotnet restore
-
     - name: Restore
-      run: nuget restore WpdDemo/WpdDemo.csproj
+      run: nuget restore WpdDemo.sln
 
-    - name: Build (MSBuild .NET Framework)
-      run: msbuild WpdDemo/WpdDemo.csproj /p:Configuration=Release /p:Platform="Any CPU" /m
-    
-    # ビルド
-    #- name: Build
-    #  run: dotnet build --configuration Release --no-restore
+    - name: Build
+      run: msbuild WpdDemo.sln /p:Configuration=Release /p:Platform=AnyCPU /m
 
     # 発行（単一EXE）
-    - name: Publish
-      run: >
-        dotnet publish
-        WpdDemo/WpdDemo.csproj
-        -c Release
-        -r win-x64
-        --self-contained false
-        -p:PublishSingleFile=true
-        -o publish
+    - name: Copy Output
+      run: |
+        mkdir publish
+        xcopy WpdDemo\bin\Release\* publish\ /E /H /C /I
 
     # 成果物アップロード
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: IPhoneDcimBackup
+        name: WpdDemo
         path: publish/
