@@ -34,7 +34,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Interop.PortableDeviceApiLib">
-      <HintPath>E:\wpd\Interop.PortableDeviceApiLib.dll</HintPath>
+      <HintPath>Interop.PortableDeviceApiLib.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="System" />
