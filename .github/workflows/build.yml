@@ -33,7 +33,7 @@ jobs:
       run: nuget restore WpdDemo.sln
 
     - name: Build
-      run: msbuild WpdDemo.sln /m
+      run: msbuild WpdDemo.sln /p:Configuration=Release /p:Platform="Any CPU" /m
 
     # 発行（単一EXE）
     - name: Copy Output
