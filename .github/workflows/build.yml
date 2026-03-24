@@ -16,12 +16,6 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    # .NETセットアップ
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
-
     # NuGetキャッシュ（高速化）
     - name: Cache NuGet
       uses: actions/cache@v4
